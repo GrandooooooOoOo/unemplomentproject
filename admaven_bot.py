@@ -1,14 +1,23 @@
-import os
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
-import requests
-from urllib.parse import quote
+# admaven_bot.py
 
-# Get tokens from environment variables
+import os
+import logging
+from telegram import Update
+from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
+
+# === CONFIGURATION ===
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADM_TOKEN = os.getenv("ADM_TOKEN")
 
-ADM_URL = "https://publishers.ad-maven.com/api/public/content_locker "
+ADM_API_URL = "https://publishers.ad-maven.com/api/public/content_locker "
 
+# === LOGGING SETUP ===
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+
+# === MESSAGE HANDLER ===
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text.strip()
 
@@ -16,7 +25,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🔗 Locking your link with AdMaven...")
 
         title = "Locked Content"
-        encoded_url = quote(user_input)
+        encoded_url = user_input  # Requests handles the encoding automatically
 
         headers = {
             "Authorization": f"Bearer {ADM_TOKEN}"
@@ -28,22 +37,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
 
         try:
-            response = requests.post(ADM_URL, headers=headers, data=payload)
+            response = requests.post(ADM_API_URL, headers=headers, data=payload)
             data = response.json()
 
             if data.get('type') == 'created':
                 short_link = data['message']['desturl']
-                await update.message.reply_text(f"✅ Monetized Link:\n\n{short_link}")
+                await update.message.reply_text(f"✅ Your monetized link is ready:\n\n{short_link}")
             else:
-                error_msg = data.get('message', 'Unknown error')
-                await update.message.reply_text(f"❌ Failed: {error_msg}")
+                error_msg = data.get('message', 'Unknown error occurred.')
+                await update.message.reply_text(f"❌ Failed to create link:\n{error_msg}")
 
         except Exception as e:
-            await update.message.reply_text(f"⚠️ Error: {str(e)}")
+            await update.message.reply_text(f"⚠️ Error contacting AdMaven API:\n{str(e)}")
     else:
         await update.message.reply_text("⚠️ Please send a valid link.")
 
+# === START BOT ===
 if __name__ == '__main__':
+    if not TELEGRAM_BOT_TOKEN or not ADM_TOKEN:
+        raise ValueError("Missing environment variables: TELEGRAM_BOT_TOKEN or ADM_TOKEN")
+
+    print("🚀 Bot is running...")
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     handler = MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
     app.add_handler(handler)
