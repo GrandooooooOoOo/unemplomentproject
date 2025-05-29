@@ -2,6 +2,7 @@
 
 import os
 import logging
+import requests  # For making API calls to AdMaven
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
 
@@ -38,6 +39,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         try:
             response = requests.post(ADM_API_URL, headers=headers, data=payload)
+            response.raise_for_status()  # Raise exception for HTTP errors
             data = response.json()
 
             if data.get('type') == 'created':
@@ -47,10 +49,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 error_msg = data.get('message', 'Unknown error occurred.')
                 await update.message.reply_text(f"❌ Failed to create link:\n{error_msg}")
 
+        except requests.exceptions.RequestException as e:
+            await update.message.reply_text(f"⚠️ Network error contacting AdMaven API:\n{str(e)}")
         except Exception as e:
-            await update.message.reply_text(f"⚠️ Error contacting AdMaven API:\n{str(e)}")
+            await update.message.reply_text(f"⚠️ Unexpected error:\n{str(e)}")
     else:
-        await update.message.reply_text("⚠️ Please send a valid link.")
+        await update.message.reply_text("⚠️ Please send a valid link (starting with http:// or https://).")
 
 # === START BOT ===
 if __name__ == '__main__':
